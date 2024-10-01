@@ -1,5 +1,4 @@
-There is a level0 binary, we check the rights and it belongs to level1
-we run it with gdb
+Il y a un binaire level0, on le lance dans **gdb**
 ```asm
 (gdb) disas main
 Dump of assembler code for function main:
@@ -56,9 +55,9 @@ End of assembler dump.
 
 ```
 
-We see a cmp instruction at address ```0x08048ed9``` where EAX is compared to ```0x1a7```.
+On voit une instruction cmp a l'addresse ```0x08048ed9``` ou EAX est comparé à ```0x1a7```.
 
-So we try to launch the program with this as arguments:
+Soit 423 en décimal, on essaye avec cet argument:
 
 ```
 level0@RainFall:~$ ./level0 423
@@ -68,6 +67,6 @@ $ cat /home/user/level1/.pass
 1fe8a524fa4bec01ca4ea2a869af2a02260d4a7d5fe7e7c24d8617e6dca12d3a
 ```
 
-We get the flag.
+Flag!
 
 

