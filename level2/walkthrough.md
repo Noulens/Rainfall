@@ -109,7 +109,7 @@ level2@RainFall:~$ python /tmp/pattern3.py > /tmp/2.txt
 level2@RainFall:~$ python /tmp/pattern3.py /tmp/2.txt 0x37634136
 offset found at: 80
 ```
-On a trouvé un offset à 80 octets. Essayons d'injecter le **shelcode** à l'adresse de retour:
+On a trouvé un offset à 80 octets. Essayons d'injecter le **shellcode** à l'adresse de retour:
 ```
 level2@RainFall:~$ gdb -q ./level2
 Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
