@@ -82,6 +82,20 @@ Reading symbols from /home/user/level5/level5...(no debugging symbols found)...d
 Il faut donc contourner l'appel a **exit** de **n** pour appeler **o** à la place.
 On a vu au précédant hack qu'avec le format **%n** il était possible d'écrire des valeurs à une adresse. Il faudrait donc écraser l'adresse d'**exit** pour la remplacer par celle de **o**.
 L'adresse de **o** est **0x080484a4**, celle d'**exit** est **0x8049838**.
+> L'adresse de exit issue de la libc change à chaque fois si ASLR est activé, on sait que non dû au message d'accueil du level5, mais on peut vérifier comme ceci:
+```bash
+level5@RainFall:~$ ldd ./level5
+        linux-gate.so.1 =>  (0xb7fff000)
+        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+        /lib/ld-linux.so.2 (0x80000000)
+level5@RainFall:~$ for i in `seq 0 4`; do ldd ./level5 | grep libc; done
+        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+```
+> On voit que l'adresse **0xb7e4e000** ne change pas.
+
 L'adresse de o représente un nombre gigantesque pour être écrit par printf en nombre de caractère, potentiellement cela peut crasher. Nous allons donc écrire l'adresse en deux fois à l'aide de 2 * 2 octets au lieu de 4 octets d'un coup en séparant lower bytes et higher bytes (LOB et HOB) à l'aide de %hn qui n'écrit que le LOB de l'int pointé par %n:
 
 >si HOB < LOB
