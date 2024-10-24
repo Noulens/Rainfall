@@ -94,7 +94,7 @@ level5@RainFall:~$ for i in `seq 0 4`; do ldd ./level5 | grep libc; done
         libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
         libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
 ```
-> On voit que l'adresse **0xb7e4e000** ne change pas. Pour en savoir plus: https://askubuntu.com/questions/318315/how-can-i-temporarily-disable-aslr-address-space-layout-randomization
+> On voit que l'adresse **0xb7e4e000** ne change pas.
 
 L'adresse de o représente un nombre gigantesque pour être écrit par printf en nombre de caractère, potentiellement cela peut crasher. Nous allons donc écrire l'adresse en deux fois à l'aide de 2 * 2 octets au lieu de 4 octets d'un coup en séparant lower bytes et higher bytes (LOB et HOB) à l'aide de %hn qui n'écrit que le LOB de l'int pointé par %n:
 

