@@ -1,26 +1,24 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-char	*p(void)
-{
-	char	buffer[64];
-	void	*return_addr;
+void p(void) {
+    // stack: 0 -> 12 [opti compilo?]
+    char buf[64];       // stack: 12 -> 76
+    // stack: 80 -> 104 [opti compilo?]
+    fflush(stdout);
 
-	fflush(stdout);
-	gets(buffer);
-	return_addr = __builtin_return_address (0);      // 0 for the current function
-	if (((unsigned int)return_addr & 0xb0000000) == 0xb0000000)
-	{
-		printf("%p\n", return_addr);
-		exit(1);
-	}
-	puts(buffer);
-	return (strdup(buffer));
+    gets(buf);
+    void *a = __builtin_return_address(0); // stack: 76 -> 80
+    if (((uint)a & 0xb0000000) == 0xb0000000) {
+        printf("(%p)\n", a);
+        exit(1);
+    }
+    puts(buf);
+    strdup(buf);
 }
 
-int		main(void)
+void main(void)
 {
-	p();
-	return (0);
+    p();
 }

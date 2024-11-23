@@ -1,30 +1,26 @@
-#include <unistd.h>
+﻿#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#define _GNU_SOURCE
+#include <sys/types.h>
+#include <unistd.h>
 
-int main(int argc, char **argv)
+int main(int _, char *argv[])
 {
-	if (atoi(argv[1]) == 0x1a7)
-	{
-		char	*sh = "/bin/sh";
-		char	*cmd = strdup(sh);
-		char	*args[2];
-		__gid_t	egid = getegid();
-		__uid_t	uid = geteuid();
+    const int first_arg = atoi(argv[1]);
+    if (first_arg == 0x1a7) { // 423
+        char *cmd = strdup("/bin/sh");
 
-		egid = getegid();
-		uid = geteuid();
-		setresgid(egid, egid,egid);
-		setresuid(uid, uid, uid);
-		args[0] = sh;
-		args[1] = NULL;
-		execv(cmd, args);
-	}
-	else
-	{
-		fwrite("No !\n", 1, 5, stderr);
-	}
-	return (0);
+        const gid_t gid = getegid();
+        const uid_t uid = geteuid();
+
+        setresgid(gid, gid, gid);
+        setresuid(uid, uid, uid);
+
+        execv("/bin/sh", &cmd);
+    }
+    else {
+        fwrite("No !\n", 1, 5, stderr);
+    }
+    return 0;
 }

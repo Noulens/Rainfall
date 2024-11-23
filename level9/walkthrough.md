@@ -1,12 +1,12 @@
-Dans ce niveau, on a ce qui s'apparente a du C++ compile.
+﻿Dans ce niveau, on a ce qui s'apparente a du C++ compile.
 
-On voit qu'il y a une classe `N` qui a une methode `operator+`, un pointeur sur fonction, un nombre et une chaine de charactere
+On voit qu'il y a une classe `N` qui a une methode `operator+` et `operator-`, un pointeur sur fonction, un nombre et une chaine de charactere
 A priori en terme de structure on a quelque chose comme cela:
 ```c
 struct {
-    void (*f)(N*, N*);  // 4 bytes
-    char str[100];      // 4 bytes
-    int nb;             // 4 bytes
+   int nb;// 4 bytes
+   char annotation[100];// 4 bytes
+   int (N::*func)(N&);   // 4 bytes
 } N;                    // 108 bytes
 ```
 

